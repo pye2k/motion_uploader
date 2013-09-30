@@ -13,12 +13,18 @@ import smtplib
 from datetime import datetime
 
 import os.path
+import glob
 import sys
 
 import gdata.data
 import gdata.docs.data
 import gdata.docs.client
 import ConfigParser
+
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEBase import MIMEBase
+from email.MIMEText import MIMEText
+from email import Encoders
 
 class MotionUploader:
     def __init__(self, config_file_path):
@@ -65,15 +71,36 @@ class MotionUploader:
                 break    
         return col
     
-    def _send_email(self,msg):
+    def _send_email(self,msg,video_link):
         '''Send an email using the GMail account.'''
         senddate=datetime.strftime(datetime.now(), '%Y-%m-%d')
-        m="Date: %s\r\nFrom: %s <%s>\r\nTo: %s\r\nSubject: %s\r\nX-Mailer: My-Mail\r\n\r\n" % (senddate, self.from_name, self.sender, self.recipient, self.subject)
+
+        m = MIMEMultipart()
+        m['From'] = self.sender
+        m['To'] = self.recipient
+        m['Date'] = senddate
+        m['Subject'] = self.subject
+        
+        m.attach( MIMEText(msg) )
+
+        dir, fileext = os.path.split(video_link)
+        file, ext = os.path.splitext(fileext)
+        image = file[4:]
+        image_glob = os.path.join(dir, image + '*')
+        jpgs = glob.glob(image_glob)
+
+        for f in jpgs:
+                part = MIMEBase('application', "octet-stream")
+                part.set_payload(open(f, "rb").read())
+                Encoders.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment; filename="%s"' % os.path.basename(f))
+                m.attach(part)
+
         server = smtplib.SMTP('smtp.gmail.com:587')
         server.starttls()
         server.login(self.username, self.password)
-        server.sendmail(self.sender, self.recipient, m+msg)
-        server.quit()    
+        server.sendmail(self.sender, self.recipient, m.as_string())
+        server.quit()
 
     def _upload(self, video_file_path, folder_resource):
         '''Upload the video and return the doc'''
@@ -101,7 +128,7 @@ class MotionUploader:
             msg = self.message
             if video_link:
                 msg += '\n\n' + video_link                
-            self._send_email(msg)    
+            self._send_email(msg, video_file_path)
 
         if self.delete_after_upload:
             os.remove(video_file_path)
