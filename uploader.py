@@ -15,11 +15,13 @@ from datetime import datetime
 import os.path
 import glob
 import sys
+import httplib2
 
-import gdata.data
-import gdata.docs.data
-import gdata.docs.client
 import ConfigParser
+
+from apiclient.discovery import build
+from apiclient.http import MediaFileUpload
+from oauth2client.client import AccessTokenCredentials
 
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
@@ -53,23 +55,9 @@ class MotionUploader:
         # Options
         self.delete_after_upload = config.getboolean('options', 'delete-after-upload')
         self.send_email = config.getboolean('options', 'send-email')
-        
-        self._create_gdata_client()
 
-    def _create_gdata_client(self):
-        """Create a Documents List Client."""
-        self.client = gdata.docs.client.DocsClient(source='motion_uploader')
-        self.client.http_client.debug = False
-        self.client.client_login(self.username, self.password, service=self.client.auth_service, source=self.client.source)
-               
-    def _get_folder_resource(self):
-        """Find and return the resource whose title matches the given folder."""
-        col = None
-        for resource in self.client.GetAllResources(uri='/feeds/default/private/full/-/folder'):
-            if resource.title.text == self.folder:
-                col = resource
-                break    
-        return col
+        # Auth token for Google Drive
+        self.auth_token = config.get('drive', 'auth_token')
     
     def _send_email(self,msg,video_link):
         '''Send an email using the GMail account.'''
@@ -102,28 +90,38 @@ class MotionUploader:
         server.sendmail(self.sender, self.recipient, m.as_string())
         server.quit()
 
-    def _upload(self, video_file_path, folder_resource):
-        '''Upload the video and return the doc'''
-        doc = gdata.docs.data.Resource(type='video', title=os.path.basename(video_file_path))
-        media = gdata.data.MediaSource()
-        media.SetFileHandle(video_file_path, 'video/avi')
-        doc = self.client.CreateResource(doc, media=media, collection=folder_resource)
-        return doc
-    
-    def upload_video(self, video_file_path):
-        """Upload a video to the specified folder. Then optionally send an email and optionally delete the local file."""
-        folder_resource = self._get_folder_resource()
-        if not folder_resource:
-            raise Exception('Could not find the %s folder' % self.folder)
+    def _get_drive_service(self):
+        credentials = AccessTokenCredentials.new_from_json(self.auth_token)
 
-        doc = self._upload(video_file_path, folder_resource)
-                      
+        # Create an httplib2.Http object and authorize it with our credentials
+        http = httplib2.Http()
+        http = credentials.authorize(http)
+
+        # Refresh the credentials as necessary
+        if credentials.access_token_expired:
+            credentials.refresh(http)
+
+        drive_service = build('drive', 'v2', http=http)
+        return drive_service
+
+    def upload_video(self, video_file_path):
+        drive_service = self._get_drive_service()
+
+        # Insert a file
+        dir, fileext = os.path.split(video_file_path)
+        media_body = MediaFileUpload(video_file_path, mimetype='video/avi', resumable=True)
+        body = {
+          'title': fileext,
+          'parents': [ { 'id': '0B0GWyudyaoJxQXpNN3h2NWp5ZjA' } ],
+          'description': fileext,
+          'mimeType': 'video/avi'
+        }
+        
+        file = drive_service.files().insert(body=body, media_body=media_body).execute()
+
         if self.send_email:
-            video_link = None
-            for link in doc.link:
-                if 'video.google.com' in link.href:
-                    video_link = link.href
-                    break
+            video_link = file['alternateLink']
+
             # Send an email with the link if found
             msg = self.message
             if video_link:
@@ -144,9 +142,5 @@ if __name__ == '__main__':
         if not os.path.exists(vid_path):
             exit('Video file does not exist [%s]' % vid_path)    
         MotionUploader(cfg_path).upload_video(vid_path)        
-    except gdata.client.BadAuthentication:
-        exit('Invalid user credentials given.')
-    except gdata.client.Error:
-        exit('Login Error')
     except Exception as e:
         exit('Error: [%s]' % e)
