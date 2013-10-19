@@ -67,12 +67,13 @@ class MotionUploader:
         m['From'] = self.sender
         m['To'] = self.recipient
         m['Date'] = senddate
-        m['Subject'] = self.subject
         
         m.attach( MIMEText(msg) )
 
         dir, fileext = os.path.split(video_link)
         file, ext = os.path.splitext(fileext)
+        cam_name = os.path.basename(dir)
+        m['Subject'] = self.subject + ' (' + cam_name + ')'
         image = file[4:]
         image_glob = os.path.join(dir, image + '*')
         jpgs = glob.glob(image_glob)
