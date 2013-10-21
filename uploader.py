@@ -123,7 +123,7 @@ class MotionUploader:
             # Send an email with the link if found
             msg = self.message
             if video_link:
-                msg += '\n\n' + video_link                
+                msg += ': ' + fileext + '\n\n' + video_link                
             self._send_email(msg, video_file_path)
 
         if self.delete_after_upload:
