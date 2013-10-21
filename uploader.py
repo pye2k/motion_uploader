@@ -13,7 +13,6 @@ import smtplib
 from datetime import datetime
 
 import os.path
-import glob
 import sys
 import httplib2
 
@@ -74,16 +73,14 @@ class MotionUploader:
         file, ext = os.path.splitext(fileext)
         cam_name = os.path.basename(dir)
         m['Subject'] = self.subject + ' (' + cam_name + ')'
-        image = file[4:]
-        image_glob = os.path.join(dir, image + '*')
-        jpgs = glob.glob(image_glob)
 
-        for f in jpgs:
-                part = MIMEBase('application', "octet-stream")
-                part.set_payload(open(f, "rb").read())
-                Encoders.encode_base64(part)
-                part.add_header('Content-Disposition', 'attachment; filename="%s"' % os.path.basename(f))
-                m.attach(part)
+        # Attach a jpeg from the capture
+        image = os.path.join(dir, 'motion.jpg')
+        part = MIMEBase('application', "octet-stream")
+        part.set_payload(open(image, "rb").read())
+        Encoders.encode_base64(part)
+        part.add_header('Content-Disposition', 'attachment; filename="%s"' % os.path.basename(image))
+        m.attach(part)
 
         server = smtplib.SMTP('smtp.gmail.com:587')
         server.starttls()
