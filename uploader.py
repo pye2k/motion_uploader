@@ -40,7 +40,7 @@ class MotionUploader:
         self.sender = config.get('gmail', 'sender')
         
         # Recipient email address (could be same as from_addr)
-        self.recipient = config.get('gmail', 'recipient')        
+        self.recipients = config.get('gmail', 'recipients').split(',')
         
         # Subject line for email
         self.subject = config.get('gmail', 'subject')
@@ -64,7 +64,7 @@ class MotionUploader:
 
         m = MIMEMultipart()
         m['From'] = self.sender
-        m['To'] = self.recipient
+        m['To'] = ', '.join(self.recipients)
         m['Date'] = senddate
         
         m.attach( MIMEText(msg) )
@@ -85,7 +85,7 @@ class MotionUploader:
         server = smtplib.SMTP('smtp.gmail.com:587')
         server.starttls()
         server.login(self.username, self.password)
-        server.sendmail(self.sender, self.recipient, m.as_string())
+        server.sendmail(self.sender, self.recipients, m.as_string())
         server.quit()
 
     def _get_drive_service(self):
