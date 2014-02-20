@@ -102,18 +102,34 @@ class MotionUploader:
         drive_service = build('drive', 'v2', http=http)
         return drive_service
 
-    def _get_folder_id(self):
+    def _get_folder_id(self, name):
         drive_service = self._get_drive_service()
 
         param = {}
-        param['q'] = "title='" + self.folder + "'"
+        param['q'] = "title='" + name + "'"
         files = drive_service.files().list(**param).execute()
+        if not files['items']:
+            return None
         return (files['items'][0].get('id'))
+
+    def _create_folder(self, name):
+        drive_service = self._get_drive_service()
+
+        body = {}
+        body['title'] = name
+        body['description'] = name
+        body['mimeType'] = 'application/vnd.google-apps.folder'
+
+        # Create the new folder under the global folder
+        parent_id = self._get_folder_id(self.folder)
+        body['parents'] = [ { 'id': parent_id } ]
+
+        return drive_service.files().insert(body=body).execute()
 
     def upload_video(self, video_file_path):
         drive_service = self._get_drive_service()
 
-        # Insert a file
+        # Insert the file
         dir, fileext = os.path.split(video_file_path)
         media_body = MediaFileUpload(video_file_path, mimetype='video/avi', resumable=True)
         body = {
@@ -122,10 +138,14 @@ class MotionUploader:
           'mimeType': 'video/avi'
         }
 
-        # Upload to a specific folder if one is specified
-        folder_id = self._get_folder_id()
-        if folder_id:
-          body['parents'] = [ { 'id': folder_id } ]
+        # Create a folder if one doesn't already exist
+        folder_name = datetime.strftime(datetime.now(), '%Y_%m_%d')
+        folder_id = self._get_folder_id(folder_name)
+        if folder_id is None:
+            folder_id = self._create_folder(folder_name)
+
+        # Upload to a specific folder
+        body['parents'] = [ { 'id': folder_id } ]
 
         file = drive_service.files().insert(body=body, media_body=media_body).execute()
 
