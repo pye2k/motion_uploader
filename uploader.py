@@ -131,7 +131,7 @@ class MotionUploader:
 
         # Insert the file
         dir, fileext = os.path.split(video_file_path)
-        media_body = MediaFileUpload(video_file_path, mimetype='video/avi', resumable=True)
+        media_body = MediaFileUpload(video_file_path, mimetype='video/avi', resumable=False)
         body = {
           'title': fileext,
           'description': fileext,
