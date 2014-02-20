@@ -102,6 +102,14 @@ class MotionUploader:
         drive_service = build('drive', 'v2', http=http)
         return drive_service
 
+    def _get_folder_id(self):
+        drive_service = self._get_drive_service()
+
+        param = {}
+        param['q'] = "title='" + self.folder + "'"
+        files = drive_service.files().list(**param).execute()
+        return (files['items'][0].get('id'))
+
     def upload_video(self, video_file_path):
         drive_service = self._get_drive_service()
 
@@ -110,11 +118,15 @@ class MotionUploader:
         media_body = MediaFileUpload(video_file_path, mimetype='video/avi', resumable=True)
         body = {
           'title': fileext,
-          'parents': [ { 'id': '0B0GWyudyaoJxQXpNN3h2NWp5ZjA' } ],
           'description': fileext,
           'mimeType': 'video/avi'
         }
-        
+
+        # Upload to a specific folder if one is specified
+        folder_id = self._get_folder_id()
+        if folder_id:
+          body['parents'] = [ { 'id': folder_id } ]
+
         file = drive_service.files().insert(body=body, media_body=media_body).execute()
 
         if self.send_email:
