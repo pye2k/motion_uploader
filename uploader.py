@@ -72,7 +72,7 @@ class MotionUploader:
         dir, fileext = os.path.split(video_link)
         file, ext = os.path.splitext(fileext)
         cam_name = os.path.basename(dir)
-        m['Subject'] = self.subject + ' (' + cam_name + ')'
+        m['Subject'] = self.subject + ' (' + senddate + ')'
 
         # Attach a jpeg from the capture
         image = os.path.join(dir, 'motion.jpg')
