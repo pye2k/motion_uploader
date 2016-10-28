@@ -21,6 +21,7 @@ import ConfigParser
 from apiclient.discovery import build
 from apiclient.http import MediaFileUpload
 from oauth2client.client import AccessTokenCredentials
+from oauth2client.client import OAuth2WebServerFlow
 
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
@@ -96,8 +97,25 @@ class MotionUploader:
         http = credentials.authorize(http)
 
         # Refresh the credentials as necessary
-        if credentials.access_token_expired:
-            credentials.refresh(http)
+        try:
+            if credentials.access_token_expired:
+                credentials.refresh(http)
+        except:
+            # Something went wrong with automatic refresh; try manually doing it
+            print('Manually refreshing credentials...')
+            flow = OAuth2WebServerFlow(client_id=credentials.client_id,
+                                       client_secret=credentials.client_secret,
+                                       scope='https://www.googleapis.com/auth/drive',
+                                       redirect_uri='urn:ietf:wg:oauth:2.0:oob')
+            auth_uri = flow.step1_get_authorize_url()
+
+            print('Go to this link in your browser:')
+            print(auth_uri)
+
+            auth_code = raw_input('Enter the auth code: ')
+            credentials = flow.step2_exchange(auth_code)
+            print('Save the following credentials in the configuration file...')
+            exit(credentials.to_json())
 
         drive_service = build('drive', 'v2', http=http)
         return drive_service
